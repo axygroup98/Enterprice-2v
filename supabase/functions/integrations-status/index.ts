@@ -1,5 +1,4 @@
 import { handleOptions, jsonResponse } from '../_shared/cors.ts';
-import { requireInternalAuth } from '../_shared/auth.ts';
 import { serviceClient } from '../_shared/db.ts';
 
 const SOURCES = ['bling', 'mercadolivre', 'shopee'] as const;
@@ -7,9 +6,6 @@ const SOURCES = ['bling', 'mercadolivre', 'shopee'] as const;
 Deno.serve(async (req: Request) => {
   const pre = handleOptions(req);
   if (pre) return pre;
-
-  const authError = requireInternalAuth(req);
-  if (authError) return authError;
 
   const db = serviceClient();
   const { data: creds } = await db.from('oauth_credentials').select('source, client_id, redirect_uri');

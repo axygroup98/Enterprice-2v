@@ -1,14 +1,10 @@
 import { handleOptions, jsonResponse } from '../_shared/cors.ts';
-import { requireInternalAuth } from '../_shared/auth.ts';
 import { testConnection, getListings, updateStock, unlistItem } from '../_shared/shopee.ts';
 import { ShopeeActionSchema } from '../_shared/schemas.ts';
 
 Deno.serve(async (req: Request) => {
   const pre = handleOptions(req);
   if (pre) return pre;
-
-  const authError = requireInternalAuth(req);
-  if (authError) return authError;
 
   let rawBody: unknown;
   try {

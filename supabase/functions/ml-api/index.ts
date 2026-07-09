@@ -1,5 +1,4 @@
 import { handleOptions, jsonResponse } from '../_shared/cors.ts';
-import { requireInternalAuth } from '../_shared/auth.ts';
 import { refreshIfNeeded, testConnection, getListings, updateStock, closeListing } from '../_shared/ml.ts';
 import { httpRequest } from '../_shared/http-client.ts';
 import { MlActionSchema } from '../_shared/schemas.ts';
@@ -7,9 +6,6 @@ import { MlActionSchema } from '../_shared/schemas.ts';
 Deno.serve(async (req: Request) => {
   const pre = handleOptions(req);
   if (pre) return pre;
-
-  const authError = requireInternalAuth(req);
-  if (authError) return authError;
 
   let rawBody: unknown;
   try {

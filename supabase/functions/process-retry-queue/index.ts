@@ -1,5 +1,4 @@
 import { handleOptions, jsonResponse } from '../_shared/cors.ts';
-import { requireInternalAuth } from '../_shared/auth.ts';
 import { serviceClient } from '../_shared/db.ts';
 import * as ML from '../_shared/ml.ts';
 import * as Shopee from '../_shared/shopee.ts';
@@ -18,9 +17,6 @@ const MAX_ATTEMPTS = 5;
 Deno.serve(async (req: Request) => {
   const pre = handleOptions(req);
   if (pre) return pre;
-
-  const authError = requireInternalAuth(req);
-  if (authError) return authError;
 
   const db = serviceClient();
   const { data: pending } = await db

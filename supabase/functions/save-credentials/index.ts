@@ -1,6 +1,5 @@
 import { handleOptions, jsonResponse } from '../_shared/cors.ts';
 import { serviceClient } from '../_shared/db.ts';
-import { requireInternalAuth } from '../_shared/auth.ts';
 import { z } from 'npm:zod@3.23.8';
 
 const BodySchema = z.object({
@@ -20,9 +19,6 @@ const BodySchema = z.object({
 Deno.serve(async (req: Request) => {
   const pre = handleOptions(req);
   if (pre) return pre;
-
-  const authError = requireInternalAuth(req);
-  if (authError) return authError;
 
   if (req.method !== 'POST') return jsonResponse({ error: 'Método não permitido' }, 405);
 

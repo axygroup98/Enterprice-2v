@@ -1,5 +1,4 @@
 import { handleOptions, jsonResponse } from '../_shared/cors.ts';
-import { requireInternalAuth } from '../_shared/auth.ts';
 import { serviceClient, insertAuditRecord } from '../_shared/db.ts';
 import * as Bling from '../_shared/bling.ts';
 import * as ML from '../_shared/ml.ts';
@@ -69,9 +68,6 @@ async function enqueueRetry(source: string, operation: string, payload: Record<s
 Deno.serve(async (req: Request) => {
   const pre = handleOptions(req);
   if (pre) return pre;
-
-  const authError = requireInternalAuth(req);
-  if (authError) return authError;
 
   let rawBody: unknown;
   try {
