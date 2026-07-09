@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   CheckCircle, XCircle, Clock, RefreshCw,
   Activity, AlertTriangle,
@@ -68,7 +68,7 @@ export function Integrate() {
     setLoading(false);
   }
 
-  async function loadLogs() {
+  const loadLogs = useCallback(async () => {
     setLogLoading(true);
     let query = supabase
       .from('sync_logs')
@@ -80,10 +80,10 @@ export function Integrate() {
     const { data } = await query;
     setLogs((data ?? []) as SyncLog[]);
     setLogLoading(false);
-  }
+  }, [logSource, logStatus]);
 
   useEffect(() => { loadAll(); }, []);
-  useEffect(() => { loadLogs(); }, [logSource, logStatus]);
+  useEffect(() => { loadLogs(); }, [loadLogs]);
 
   async function handleSync() {
     setConfirmSync(false);

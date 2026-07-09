@@ -25,7 +25,8 @@ export function timingSafeEqual(a: string, b: string): boolean {
     // Ainda assim percorre um buffer de tamanho fixo para não vazar o
     // comprimento via timing de forma trivial.
     let dummy = 0;
-    for (let i = 0; i < bufA.length; i++) dummy |= bufA[i];
+    for (let i = 0; i < bufA.length; i++) { dummy |= bufA[i]; }
+    void dummy; // intencional: apenas iterar para evitar timing leak
     return false;
   }
   let diff = 0;

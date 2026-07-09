@@ -10,6 +10,7 @@ import { httpRequest } from './http-client.ts';
 function mockFetchOnce(responses: Array<() => Response>) {
   let call = 0;
   const original = globalThis.fetch;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   globalThis.fetch = ((..._args: unknown[]) => {
     const resFactory = responses[Math.min(call, responses.length - 1)];
     call++;
