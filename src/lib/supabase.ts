@@ -29,11 +29,6 @@ export async function getAllConfig(): Promise<Record<string, string>> {
   return Object.fromEntries(data.map((r) => [r.key, r.value ?? '']));
 }
 
-export async function setConfig(key: string, value: string): Promise<void> {
-  await supabase
-    .from('system_config')
-    .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
-}
 
 // NOTA: inserção de sync_logs e audit_records agora é feita exclusivamente
 // pelas Edge Functions (service_role) — o frontend não tem mais permissão de

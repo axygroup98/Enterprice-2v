@@ -3,7 +3,7 @@ import {
   Save, CheckCircle, XCircle, Loader2, Link2,
   Database, RefreshCw, Download, Bell, ShieldCheck, PlugZap,
 } from 'lucide-react';
-import { getAllConfig, setConfig } from '../lib/supabase';
+import { getAllConfig } from '../lib/supabase';
 import { callEdgeFunction, edgeFunctionUrl } from '../lib/edge';
 import { getIntegrationStatuses } from '../lib/integrations';
 import { IntegrationStatus, IntegrationSource } from '../types';
@@ -67,6 +67,7 @@ export function Admin() {
   });
   const [credSaving, setCredSaving] = useState<string | null>(null);
   const [credSaved, setCredSaved] = useState<string | null>(null);
+  const [credError, setCredError] = useState<Record<string, string>>({});
   const [testing, setTesting] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<Record<string, { ok: boolean; error?: string }>>({});
 
@@ -93,13 +94,20 @@ export function Admin() {
 
   async function saveSystem() {
     setSaving('system');
-    for (const key of Object.keys(system) as (keyof SystemConfigState)[]) {
-      await setConfig(key, system[key]);
+    try {
+      const config: Record<string, string> = {};
+      for (const key of Object.keys(system) as (keyof SystemConfigState)[]) {
+        config[key] = system[key];
+      }
+      await callEdgeFunction('save-config', { config });
+      setOriginalSystem(system);
+      setSaved('system');
+      setTimeout(() => setSaved(null), 3000);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Falha ao salvar configurações do sistema.');
+    } finally {
+      setSaving(null);
     }
-    setOriginalSystem(system);
-    setSaving(null);
-    setSaved('system');
-    setTimeout(() => setSaved(null), 3000);
   }
 
   function isSystemDirty() {
@@ -112,18 +120,28 @@ export function Admin() {
 
   async function saveCredentials(source: 'bling' | 'mercadolivre' | 'shopee') {
     setCredSaving(source);
+    setCredError((prev) => { const next = { ...prev }; delete next[source]; return next; });
     const form = forms[source];
-    await callEdgeFunction('save-credentials', {
-      source,
-      client_id: form.client_id || undefined,
-      client_secret: form.client_secret || undefined,
-      redirect_uri: form.redirect_uri || undefined,
-      frontend_admin_url: window.location.origin + window.location.pathname,
-    });
-    setCredSaving(null);
-    setCredSaved(source);
-    setTimeout(() => setCredSaved(null), 3000);
-    setStatuses(await getIntegrationStatuses());
+    try {
+      const result = await callEdgeFunction<{ ok: boolean; error?: string }>('save-credentials', {
+        source,
+        client_id: form.client_id || undefined,
+        client_secret: form.client_secret || undefined,
+        redirect_uri: form.redirect_uri || undefined,
+        frontend_admin_url: window.location.origin + window.location.pathname,
+      });
+      if (!result.ok) {
+        setCredError((prev) => ({ ...prev, [source]: result.error ?? 'Falha ao salvar credenciais' }));
+        return;
+      }
+      setCredSaved(source);
+      setTimeout(() => setCredSaved(null), 3000);
+      setStatuses(await getIntegrationStatuses());
+    } catch (err) {
+      setCredError((prev) => ({ ...prev, [source]: err instanceof Error ? err.message : 'Falha ao salvar credenciais' }));
+    } finally {
+      setCredSaving(null);
+    }
   }
 
   function connect(source: 'bling' | 'mercadolivre' | 'shopee') {
@@ -192,6 +210,7 @@ export function Admin() {
         saved={credSaved === 'bling'}
         testing={testing === 'bling'}
         testResult={testResult.bling}
+        credError={credError.bling}
         redirectHint="Não aplicável — o Bling usa a redirect_uri cadastrada diretamente no seu App do Bling, não a informada aqui."
         showRedirectField={false}
       />
@@ -212,6 +231,7 @@ export function Admin() {
         saved={credSaved === 'mercadolivre'}
         testing={testing === 'mercadolivre'}
         testResult={testResult.mercadolivre}
+        credError={credError.mercadolivre}
         redirectHint={`Cadastre exatamente esta URL como Redirect URI no seu app do Mercado Livre: ${edgeFunctionUrl('ml-oauth-callback')}`}
         showRedirectField
       />
@@ -232,6 +252,7 @@ export function Admin() {
         saved={credSaved === 'shopee'}
         testing={testing === 'shopee'}
         testResult={testResult.shopee}
+        credError={credError.shopee}
         redirectHint={`Cadastre exatamente esta URL como Redirect URL no seu app da Shopee: ${edgeFunctionUrl('shopee-oauth-callback')}`}
         showRedirectField
       />
@@ -316,7 +337,7 @@ function StatusPill({ status }: { status?: IntegrationStatus }) {
 
 function IntegrationSection({
   title, icon, accent, description, status, form, onChange, onSave, onConnect, onTest,
-  saving, saved, testing, testResult, redirectHint, showRedirectField,
+  saving, saved, testing, testResult, credError, redirectHint, showRedirectField,
 }: {
   source: 'bling' | 'mercadolivre' | 'shopee';
   title: string;
@@ -333,6 +354,7 @@ function IntegrationSection({
   saved: boolean;
   testing: boolean;
   testResult?: { ok: boolean; error?: string };
+  credError?: string;
   redirectHint: string;
   showRedirectField: boolean;
 }) {
@@ -381,6 +403,11 @@ function IntegrationSection({
         {saved && (
           <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
             <CheckCircle className="h-4 w-4" /> Credenciais salvas
+          </span>
+        )}
+        {credError && (
+          <span className="flex items-center gap-1.5 text-xs text-red-600 font-medium">
+            <XCircle className="h-4 w-4" /> {credError}
           </span>
         )}
         {testResult && (

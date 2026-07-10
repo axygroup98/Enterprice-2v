@@ -5,7 +5,6 @@ import {
   ProductMonitor,
   OrderMonitor,
   UpdateIntegrationsResult,
-  ConciliationResult,
   IntegrationSource,
 } from '../../types';
 
@@ -35,17 +34,6 @@ export async function fixDivergence(divergence: Divergence): Promise<{ ok: boole
   return callEdgeFunction('reconcile', { action: 'fix_one', params: { divergenceId: divergence.id } });
 }
 
-export async function conciliarTodos(_divergences: Divergence[]): Promise<ConciliationResult> {
-  // A Edge Function relê o estado atual do banco (mais seguro que confiar na
-  // lista que o navegador tinha em memória, que pode estar desatualizada).
-  void _divergences;
-  const res = await callEdgeFunction<{ ok: boolean; updated: number; manualReview: number; errors: number; durationMs: number; details: ConciliationResult['details']; error?: string }>(
-    'reconcile',
-    { action: 'conciliar_todos' }
-  );
-  if (!res.ok) throw new Error(res.error ?? 'Falha ao conciliar');
-  return { updated: res.updated, manualReview: res.manualReview, errors: res.errors, durationMs: res.durationMs, details: res.details };
-}
 
 // ─── Status das integrações (Admin / Dashboard / Integrar) ──────────────────
 interface StatusRow {
@@ -151,7 +139,7 @@ export async function getOrderMonitorData(): Promise<OrderMonitor[]> {
   // confirmados (ver AUDITORIA.md).
   return (res.data ?? []).map((o) => ({
     id: String(o.numero ?? o.id ?? ''),
-    marketplace: 'mercadolivre' as const,
+    marketplace: 'bling' as const,
     status: 'new' as const,
     buyerName: o.contato?.nome ?? '—',
     total: Number(o.total ?? 0),

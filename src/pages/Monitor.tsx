@@ -273,9 +273,11 @@ export function Monitor() {
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
                           o.marketplace === 'mercadolivre'
                             ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                            : 'bg-orange-50 text-orange-700 border-orange-200'
+                            : o.marketplace === 'shopee'
+                            ? 'bg-orange-50 text-orange-700 border-orange-200'
+                            : 'bg-blue-50 text-blue-700 border-blue-200'
                         }`}>
-                          {o.marketplace === 'mercadolivre' ? 'Mercado Livre' : 'Shopee'}
+                          {o.marketplace === 'mercadolivre' ? 'Mercado Livre' : o.marketplace === 'shopee' ? 'Shopee' : 'Bling'}
                         </span>
                       </td>
                       <td className="px-3 py-3 text-sm text-gray-700">{o.buyerName}</td>

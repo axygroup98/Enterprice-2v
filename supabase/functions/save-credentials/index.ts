@@ -8,7 +8,10 @@ const BodySchema = z.object({
   client_secret: z.string().min(1).max(500).optional(),
   redirect_uri: z.string().url().max(1000).optional(),
   frontend_admin_url: z.string().max(1000).optional(),
-});
+}).refine(
+  (data) => data.client_id !== undefined || data.client_secret !== undefined || data.redirect_uri !== undefined,
+  { message: 'Pelo menos um campo (client_id, client_secret ou redirect_uri) deve ser fornecido' }
+);
 
 // Único ponto de escrita para oauth_credentials. O frontend nunca escreve
 // direto na tabela (ela não tem policy de RLS para anon/authenticated),

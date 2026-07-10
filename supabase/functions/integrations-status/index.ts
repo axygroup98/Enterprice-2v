@@ -8,13 +8,17 @@ Deno.serve(async (req: Request) => {
   if (pre) return pre;
 
   const db = serviceClient();
-  const { data: creds } = await db.from('oauth_credentials').select('source, client_id, redirect_uri');
-  const { data: tokens } = await db.from('oauth_tokens').select('source, access_token, expires_at');
-  const { data: recentLogs } = await db
+  const { data: creds, error: credErr } = await db.from('oauth_credentials').select('source, client_id, redirect_uri');
+  const { data: tokens, error: tokenErr } = await db.from('oauth_tokens').select('source, access_token, expires_at');
+  const { data: recentLogs, error: logErr } = await db
     .from('sync_logs')
     .select('source, status, created_at, duration_ms')
     .order('created_at', { ascending: false })
     .limit(60);
+
+  if (credErr || tokenErr || logErr) {
+    return jsonResponse({ ok: false, error: 'Falha ao consultar estado das integrações' }, 500);
+  }
 
   const result = SOURCES.map((source) => {
     const cred = creds?.find((c) => c.source === source);

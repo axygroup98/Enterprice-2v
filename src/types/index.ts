@@ -5,12 +5,6 @@ export type SyncStatus = 'success' | 'error' | 'partial';
 export type AuditResult = 'success' | 'error' | 'partial' | 'info';
 export type IntegrationSource = 'bling' | 'mercadolivre' | 'shopee' | 'system';
 
-export interface SystemConfig {
-  key: string;
-  value: string;
-  updated_at: string;
-}
-
 export interface SyncLog {
   id: string;
   created_at: string;
@@ -60,16 +54,6 @@ export interface IntegrationStatus {
   tokenConfigured: boolean;
 }
 
-export interface DashboardSummary {
-  critical: number;
-  high: number;
-  medium: number;
-  informative: number;
-  ordersToday: number;
-  pendingOrders: number;
-  stoppedOrders: number;
-}
-
 export interface ProductMonitor {
   sku: string;
   name: string;
@@ -85,7 +69,7 @@ export interface ProductMonitor {
 
 export interface OrderMonitor {
   id: string;
-  marketplace: 'mercadolivre' | 'shopee';
+  marketplace: 'mercadolivre' | 'shopee' | 'bling';
   status: 'new' | 'paid' | 'awaiting_nf' | 'separating' | 'shipped' | 'delivered' | 'stopped';
   buyerName: string;
   total: number;

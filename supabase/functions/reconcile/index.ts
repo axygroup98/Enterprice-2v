@@ -86,11 +86,14 @@ Deno.serve(async (req: Request) => {
     try {
       const { rows, notConfigured } = await computeDivergences();
       const now = new Date().toISOString();
-      await db.from('divergences').delete().eq('resolved', false).eq('ignored', false);
+      const { error: delError } = await db.from('divergences').delete().eq('resolved', false).eq('ignored', false);
+      if (delError) throw new Error(`Falha ao limpar divergências: ${delError.message}`);
       if (rows.length > 0) {
-        await db.from('divergences').insert(rows.map((r) => ({ ...r, resolved: false, resolved_at: null, ignored: false, created_at: now, updated_at: now })));
+        const { error: insError } = await db.from('divergences').insert(rows.map((r) => ({ ...r, resolved: false, resolved_at: null, ignored: false, created_at: now, updated_at: now })));
+        if (insError) throw new Error(`Falha ao inserir divergências: ${insError.message}`);
       }
-      const { data } = await db.from('divergences').select('*').eq('resolved', false).eq('ignored', false).order('priority', { ascending: true });
+      const { data, error: selError } = await db.from('divergences').select('*').eq('resolved', false).eq('ignored', false).order('priority', { ascending: true });
+      if (selError) throw new Error(`Falha ao ler divergências: ${selError.message}`);
       return jsonResponse({ ok: true, data: data ?? [], notConfigured });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro desconhecido';
