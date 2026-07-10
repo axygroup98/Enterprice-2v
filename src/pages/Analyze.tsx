@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { getProductMonitorData, getOrderMonitorData } from '../lib/integrations';
-import { Divergence, ProductMonitor, OrderMonitor } from '../types';
+import { Divergence, OrderMonitor } from '../types';
 import { Page } from '../components/Sidebar';
 
 interface AnalysisCard {
@@ -32,7 +32,7 @@ export function Analyze({ onNavigate }: Props) {
   useEffect(() => {
     async function build() {
       setLoading(true);
-      let products: ProductMonitor[] = [];
+      let products: Awaited<ReturnType<typeof getProductMonitorData>> = [];
       let orders: OrderMonitor[] = [];
       let divs: Divergence[] = [];
 

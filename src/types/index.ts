@@ -60,50 +60,59 @@ export interface MLAttribute {
   valueName: string | null;
 }
 
-export interface ProductMonitor {
+export type ListingStatus = 'active' | 'paused' | 'closed' | 'not_listed';
+
+export interface ErpProduct {
   sku: string;
   name: string;
-  erpStock: number;
-  erpPrice: number;
-  erpPrecoCusto: number | null;
-  erpCategoria: string | null;
-  erpMarca: string | null;
-  erpGtin: string | null;
-  erpPeso: number | null;
-  erpSituacao: string | null;
-  erpNcm: string | null;
-  erpTipo: string | null;
-  erpUnidade: string | null;
-  erpPhotoCount: number;
-  erpDescriptionText: string | null;
-  mlStock: number | null;
-  shopeeStock: number | null;
+  stock: number;
+  price: number;
+  precoCusto: number | null;
+  categoria: string | null;
+  marca: string | null;
+  gtin: string | null;
+  peso: number | null;
+  situacao: string | null;
+  ncm: string | null;
+  tipo: string | null;
+  unidade: string | null;
+  photoCount: number;
   hasPhoto: boolean;
+  descriptionText: string | null;
   hasDescription: boolean;
-  hasVideo: boolean;
-  mlStatus: 'active' | 'paused' | 'closed' | 'not_listed' | null;
-  shopeeStatus: 'active' | 'paused' | 'closed' | 'not_listed' | null;
-  mlItemId: string | null;
-  mlTitle: string | null;
-  mlPrice: number | null;
-  mlSoldQuantity: number | null;
-  mlHealth: number | null;
-  mlPermalink: string | null;
-  mlThumbnail: string | null;
-  mlPictureCount: number | null;
-  mlVideoId: string | null;
-  mlListingType: string | null;
-  mlCondition: string | null;
-  mlCategoryId: string | null;
-  mlFreeShipping: boolean | null;
-  mlLocalPickUp: boolean | null;
-  mlWarranty: string | null;
-  mlAcceptsMercadoPago: boolean | null;
-  mlCatalogListing: boolean | null;
-  mlAttributes: MLAttribute[];
-  mlTags: string[];
-  mlDateCreated: string | null;
-  mlLastUpdated: string | null;
+}
+
+export type MarketplaceSource = 'mercadolivre' | 'shopee';
+
+export interface MarketplaceListing {
+  itemId: string;
+  sku: string | null;
+  source: MarketplaceSource;
+  title: string;
+  stock: number;
+  status: ListingStatus;
+  price: number | null;
+  soldQuantity: number | null;
+  health: number | null;
+  permalink: string | null;
+  thumbnail: string | null;
+  pictureCount: number;
+  videoId: string | null;
+  listingType: string | null;
+  condition: string | null;
+  categoryId: string | null;
+  freeShipping: boolean | null;
+  localPickUp: boolean | null;
+  warranty: string | null;
+  acceptsMercadoPago: boolean | null;
+  catalogListing: boolean | null;
+  attributes: MLAttribute[];
+  tags: string[];
+  dateCreated: string | null;
+  lastUpdated: string | null;
+  erpSku: string | null;
+  erpName: string | null;
+  erpStock: number | null;
 }
 
 export interface OrderMonitor {

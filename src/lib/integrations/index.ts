@@ -2,7 +2,9 @@ import { callEdgeFunction, getEdgeFunction } from '../edge';
 import {
   Divergence,
   IntegrationStatus,
-  ProductMonitor,
+  ErpProduct,
+  MarketplaceListing,
+  ListingStatus,
   OrderMonitor,
   UpdateIntegrationsResult,
   IntegrationSource,
@@ -86,82 +88,120 @@ interface MLListingDTO {
 }
 interface ShopeeListingDTO { itemId: number; sku: string | null; name: string; stock: number; status: string }
 
-export function mapMlStatus(status: string): ProductMonitor['mlStatus'] {
+export function mapMlStatus(status: string): ListingStatus {
   if (status === 'active' || status === 'paused' || status === 'closed') return status;
   return 'not_listed';
 }
-export function mapShopeeStatus(status: string): ProductMonitor['shopeeStatus'] {
+export function mapShopeeStatus(status: string): ListingStatus {
   if (status === 'NORMAL') return 'active';
   if (status === 'UNLIST') return 'paused';
   if (status === 'BANNED' || status === 'DELETED') return 'closed';
   return 'not_listed';
 }
 
-export async function getProductMonitorData(): Promise<ProductMonitor[]> {
-  const [blingRes, mlRes, shopeeRes] = await Promise.all([
-    callEdgeFunction<{ ok: boolean; data?: BlingProductDTO[]; error?: string }>('bling-api', { action: 'get_products' }),
+export async function getErpProducts(): Promise<ErpProduct[]> {
+  const blingRes = await callEdgeFunction<{ ok: boolean; data?: BlingProductDTO[]; error?: string }>(
+    'bling-api', { action: 'get_products' }
+  );
+  if (!blingRes.ok) throw new Error(blingRes.error ?? 'Integração não configurada.');
+  return (blingRes.data ?? []).map((p) => ({
+    sku: p.sku,
+    name: p.name,
+    stock: p.stock,
+    price: p.price,
+    precoCusto: p.precoCusto,
+    categoria: p.categoria,
+    marca: p.marca,
+    gtin: p.gtin,
+    peso: p.peso,
+    situacao: p.situacao,
+    ncm: p.ncm,
+    tipo: p.tipo,
+    unidade: p.unidade,
+    photoCount: p.photoCount,
+    hasPhoto: p.hasPhoto,
+    descriptionText: p.descriptionText,
+    hasDescription: p.hasDescription,
+  }));
+}
+
+export async function getMarketplaceListings(erpProducts?: ErpProduct[]): Promise<MarketplaceListing[]> {
+  const [mlRes, shopeeRes] = await Promise.all([
     callEdgeFunction<{ ok: boolean; data?: MLListingDTO[]; error?: string }>('ml-api', { action: 'get_listings' }),
     callEdgeFunction<{ ok: boolean; data?: ShopeeListingDTO[]; error?: string }>('shopee-api', { action: 'get_listings' }),
   ]);
 
-  if (!blingRes.ok) {
-    // O Bling é o ERP / fonte oficial: sem ele não existe "monitor de produtos" confiável.
-    throw new Error(blingRes.error ?? 'Integração não configurada.');
-  }
+  const erpMap = new Map((erpProducts ?? []).map((p) => [p.sku, p]));
 
-  const products = blingRes.data ?? [];
-  const mlMap = new Map((mlRes.ok ? mlRes.data ?? [] : []).map((l) => [l.sku, l]));
-  const shMap = new Map((shopeeRes.ok ? shopeeRes.data ?? [] : []).map((l) => [l.sku, l]));
-
-  return products.map((p) => {
-    const ml = mlMap.get(p.sku);
-    const sh = shMap.get(p.sku);
+  const mlListings: MarketplaceListing[] = (mlRes.ok ? mlRes.data ?? [] : []).map((l) => {
+    const erp = l.sku ? erpMap.get(l.sku) : undefined;
     return {
-      sku: p.sku,
-      name: p.name,
-      erpStock: p.stock,
-      erpPrice: p.price,
-      erpPrecoCusto: p.precoCusto,
-      erpCategoria: p.categoria,
-      erpMarca: p.marca,
-      erpGtin: p.gtin,
-      erpPeso: p.peso,
-      erpSituacao: p.situacao,
-      erpNcm: p.ncm,
-      erpTipo: p.tipo,
-      erpUnidade: p.unidade,
-      erpPhotoCount: p.photoCount,
-      erpDescriptionText: p.descriptionText,
-      mlStock: ml?.stock ?? null,
-      shopeeStock: sh?.stock ?? null,
-      hasPhoto: p.hasPhoto,
-      hasDescription: p.hasDescription,
-      hasVideo: ml?.videoId != null,
-      mlStatus: ml ? mapMlStatus(ml.status) : 'not_listed',
-      shopeeStatus: sh ? mapShopeeStatus(sh.status) : 'not_listed',
-      mlItemId: ml?.itemId ?? null,
-      mlTitle: ml?.title ?? null,
-      mlPrice: ml?.price ?? null,
-      mlSoldQuantity: ml?.soldQuantity ?? null,
-      mlHealth: ml?.health ?? null,
-      mlPermalink: ml?.permalink ?? null,
-      mlThumbnail: ml?.thumbnail ?? null,
-      mlPictureCount: ml?.pictureCount ?? null,
-      mlVideoId: ml?.videoId ?? null,
-      mlListingType: ml?.listingType ?? null,
-      mlCondition: ml?.condition ?? null,
-      mlCategoryId: ml?.categoryId ?? null,
-      mlFreeShipping: ml?.freeShipping ?? null,
-      mlLocalPickUp: ml?.localPickUp ?? null,
-      mlWarranty: ml?.warranty ?? null,
-      mlAcceptsMercadoPago: ml?.acceptsMercadoPago ?? null,
-      mlCatalogListing: ml?.catalogListing ?? null,
-      mlAttributes: ml?.attributes ?? [],
-      mlTags: ml?.tags ?? [],
-      mlDateCreated: ml?.dateCreated ?? null,
-      mlLastUpdated: ml?.lastUpdated ?? null,
+      itemId: l.itemId,
+      sku: l.sku,
+      source: 'mercadolivre' as const,
+      title: l.title,
+      stock: l.stock,
+      status: mapMlStatus(l.status),
+      price: l.price,
+      soldQuantity: l.soldQuantity,
+      health: l.health,
+      permalink: l.permalink,
+      thumbnail: l.thumbnail,
+      pictureCount: l.pictureCount,
+      videoId: l.videoId,
+      listingType: l.listingType,
+      condition: l.condition,
+      categoryId: l.categoryId,
+      freeShipping: l.freeShipping,
+      localPickUp: l.localPickUp,
+      warranty: l.warranty,
+      acceptsMercadoPago: l.acceptsMercadoPago,
+      catalogListing: l.catalogListing,
+      attributes: l.attributes,
+      tags: l.tags,
+      dateCreated: l.dateCreated,
+      lastUpdated: l.lastUpdated,
+      erpSku: erp?.sku ?? null,
+      erpName: erp?.name ?? null,
+      erpStock: erp?.stock ?? null,
     };
   });
+
+  const shopeeListings: MarketplaceListing[] = (shopeeRes.ok ? shopeeRes.data ?? [] : []).map((l) => {
+    const erp = l.sku ? erpMap.get(l.sku) : undefined;
+    return {
+      itemId: String(l.itemId),
+      sku: l.sku,
+      source: 'shopee' as const,
+      title: l.name,
+      stock: l.stock,
+      status: mapShopeeStatus(l.status),
+      price: null,
+      soldQuantity: null,
+      health: null,
+      permalink: null,
+      thumbnail: null,
+      pictureCount: 0,
+      videoId: null,
+      listingType: null,
+      condition: null,
+      categoryId: null,
+      freeShipping: null,
+      localPickUp: null,
+      warranty: null,
+      acceptsMercadoPago: null,
+      catalogListing: null,
+      attributes: [],
+      tags: [],
+      dateCreated: null,
+      lastUpdated: null,
+      erpSku: erp?.sku ?? null,
+      erpName: erp?.name ?? null,
+      erpStock: erp?.stock ?? null,
+    };
+  });
+
+  return [...mlListings, ...shopeeListings];
 }
 
 interface BlingOrderDTO {
@@ -171,6 +211,29 @@ interface BlingOrderDTO {
   total?: number;
   data?: string;
   situacao?: { id?: number; valor?: number };
+}
+
+// Backward-compatible flat view for Analyze.tsx — derives the old ProductMonitor
+// shape from the split ErpProduct + MarketplaceListing data. Analyze only needs
+// a few fields (hasPhoto, hasDescription, mlStatus, mlStock, name, sku).
+export async function getProductMonitorData(): Promise<{
+  sku: string; name: string; hasPhoto: boolean; hasDescription: boolean;
+  mlStatus: ListingStatus; mlStock: number | null; erpStock: number;
+}[]> {
+  const erp = await getErpProducts();
+  const listings = await getMarketplaceListings(erp);
+  return erp.map((p) => {
+    const ml = listings.find((l) => l.source === 'mercadolivre' && l.sku === p.sku);
+    return {
+      sku: p.sku,
+      name: p.name,
+      hasPhoto: p.hasPhoto,
+      hasDescription: p.hasDescription,
+      mlStatus: ml?.status ?? 'not_listed',
+      mlStock: ml?.stock ?? null,
+      erpStock: p.stock,
+    };
+  });
 }
 
 export async function getOrderMonitorData(): Promise<OrderMonitor[]> {
