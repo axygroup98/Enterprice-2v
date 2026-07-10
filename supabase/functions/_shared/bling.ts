@@ -11,6 +11,17 @@ export interface BlingProduct {
   price: number;
   hasPhoto: boolean;
   hasDescription: boolean;
+  photoCount: number;
+  descriptionText: string | null;
+  categoria: string | null;
+  marca: string | null;
+  gtin: string | null;
+  peso: number | null;
+  situacao: string | null;
+  ncm: string | null;
+  precoCusto: number | null;
+  tipo: string | null;
+  unidade: string | null;
 }
 
 export type AuthResult = { token: string } | { error: string };
@@ -113,14 +124,28 @@ export async function getProducts(): Promise<{ ok: true; data: BlingProduct[] } 
   const products: BlingProduct[] = result.data.map((p) => {
     const estoqueField = p.estoque as { saldoVirtualTotal?: number } | undefined;
     const stock = Number((p as { estoqueAtual?: number }).estoqueAtual ?? estoqueField?.saldoVirtualTotal ?? 0);
+    const imagens = Array.isArray(p.imagens) ? (p.imagens as unknown[]) : [];
+    const descComp = typeof p.descricaoComplementar === 'string' ? p.descricaoComplementar.trim() : '';
+    const categoriaObj = p.categoria as { descricao?: string } | undefined;
     return {
       id: String(p.id ?? ''),
       sku: String(p.codigo ?? ''),
       name: String(p.descricao ?? ''),
       stock,
       price: Number(p.preco ?? 0),
-      hasPhoto: Array.isArray(p.imagens) && (p.imagens as unknown[]).length > 0,
-      hasDescription: Boolean(p.descricaoComplementar),
+      hasPhoto: imagens.length > 0,
+      hasDescription: descComp.length > 0,
+      photoCount: imagens.length,
+      descriptionText: descComp || null,
+      categoria: categoriaObj?.descricao ?? null,
+      marca: typeof p.marca === 'string' ? p.marca : null,
+      gtin: typeof p.gtin === 'string' ? p.gtin : null,
+      peso: p.pesoLiq != null ? Number(p.pesoLiq) : null,
+      situacao: typeof p.situacao === 'string' ? p.situacao : null,
+      ncm: typeof p.ncm === 'string' ? p.ncm : null,
+      precoCusto: p.precoCusto != null ? Number(p.precoCusto) : null,
+      tipo: typeof p.tipo === 'string' ? p.tipo : null,
+      unidade: typeof p.unidade === 'string' ? p.unidade : null,
     };
   });
   return { ok: true, data: products };

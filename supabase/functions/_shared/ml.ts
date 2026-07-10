@@ -5,14 +5,29 @@ const API_BASE = 'https://api.mercadolibre.com';
 
 export interface MLListing {
   itemId: string;
-  // BLOCO 2 (correção de auditoria — item 3.2): sku agora é `string | null`.
-  // Quando o anúncio não tem o atributo SELLER_SKU preenchido, NÃO usamos
-  // mais o ID do anúncio como substituto (isso causava falso "produto
-  // órfão" na conciliação). `null` sinaliza "sem SKU vinculado".
   sku: string | null;
   title: string;
   stock: number;
   status: 'active' | 'paused' | 'closed';
+  price: number;
+  soldQuantity: number;
+  health: number | null;
+  permalink: string | null;
+  thumbnail: string | null;
+  pictureCount: number;
+  videoId: string | null;
+  listingType: string | null;
+  condition: string | null;
+  categoryId: string | null;
+  freeShipping: boolean | null;
+  localPickUp: boolean | null;
+  warranty: string | null;
+  acceptsMercadoPago: boolean | null;
+  catalogListing: boolean | null;
+  attributes: Array<{ id: string; name: string; valueName: string | null }>;
+  tags: string[];
+  dateCreated: string | null;
+  lastUpdated: string | null;
 }
 
 export type AuthResult = { token: string; sellerId: string } | { error: string };
@@ -133,15 +148,37 @@ export async function getListings(): Promise<{ ok: true; data: MLListing[]; trun
     if (!detailRes.ok) return { ok: false, error: detailRes.error ?? 'erro desconhecido' };
 
     for (const { body: b } of detailRes.data ?? []) {
-      const attrs = (b.attributes as Array<{ id: string; value_name: string | null }>) ?? [];
+      const attrs = (b.attributes as Array<{ id: string; name: string; value_name: string | null }> | undefined) ?? [];
       const skuAttr = attrs.find((a) => a.id === 'SELLER_SKU');
       const skuValue = skuAttr?.value_name?.trim();
+      const pictures = Array.isArray(b.pictures) ? (b.pictures as unknown[]) : [];
+      const shipping = b.shipping as { free_shipping?: boolean; local_pick_up?: boolean } | undefined;
+      const tags = Array.isArray(b.tags) ? (b.tags as string[]) : [];
       listings.push({
         itemId: String(b.id ?? ''),
         sku: skuValue ? skuValue : null,
         title: String(b.title ?? ''),
         stock: Number(b.available_quantity ?? 0),
         status: String(b.status ?? 'closed') as MLListing['status'],
+        price: Number(b.price ?? 0),
+        soldQuantity: Number(b.sold_quantity ?? 0),
+        health: b.health != null ? Number(b.health) : null,
+        permalink: typeof b.permalink === 'string' ? b.permalink : null,
+        thumbnail: typeof b.thumbnail === 'string' ? b.thumbnail : null,
+        pictureCount: pictures.length,
+        videoId: typeof b.video_id === 'string' && b.video_id ? b.video_id : null,
+        listingType: typeof b.listing_type_id === 'string' ? b.listing_type_id : null,
+        condition: typeof b.condition === 'string' ? b.condition : null,
+        categoryId: typeof b.category_id === 'string' ? b.category_id : null,
+        freeShipping: shipping?.free_shipping ?? null,
+        localPickUp: shipping?.local_pick_up ?? null,
+        warranty: typeof b.warranty === 'string' && b.warranty ? b.warranty : null,
+        acceptsMercadoPago: b.accept_mercadopago ?? null,
+        catalogListing: b.catalog_listing ?? null,
+        attributes: attrs.map((a) => ({ id: a.id, name: a.name ?? a.id, valueName: a.value_name ?? null })),
+        tags,
+        dateCreated: typeof b.date_created === 'string' ? b.date_created : null,
+        lastUpdated: typeof b.last_updated === 'string' ? b.last_updated : null,
       });
     }
   }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Package, ShoppingBag, Plug, Search, RefreshCw,
   CheckCircle, XCircle, MinusCircle, AlertCircle,
+  ExternalLink, ChevronRight, X, Tag, ShieldCheck, Box,
 } from 'lucide-react';
 import { getProductMonitorData, getOrderMonitorData, getIntegrationStatuses } from '../lib/integrations';
 import { ProductMonitor, OrderMonitor, IntegrationStatus } from '../types';
@@ -14,7 +15,7 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   awaiting_nf: 'Aguardando NF',
   separating: 'Em Separação',
   shipped: 'Enviado',
-  delivered: 'Entregue',
+  delivered: 'Entregado',
   stopped: 'Parado',
 };
 
@@ -28,6 +29,60 @@ const ORDER_STATUS_COLORS: Record<string, string> = {
   stopped:     'bg-red-50 text-red-700 border-red-200',
 };
 
+// ─── Health Score helpers ─────────────────────────────────────────────
+function healthColor(h: number | null): { dot: string; text: string; bg: string; label: string } {
+  if (h === null) return { dot: 'bg-gray-300', text: 'text-gray-400', bg: 'bg-gray-50', label: 'N/D' };
+  if (h >= 85) return { dot: 'bg-green-500', text: 'text-green-700', bg: 'bg-green-50', label: 'Excelente' };
+  if (h >= 70) return { dot: 'bg-yellow-500', text: 'text-yellow-700', bg: 'bg-yellow-50', label: 'Boa' };
+  if (h >= 50) return { dot: 'bg-orange-500', text: 'text-orange-700', bg: 'bg-orange-50', label: 'Regular' };
+  return { dot: 'bg-red-500', text: 'text-red-700', bg: 'bg-red-50', label: 'Crítica' };
+}
+
+// Attach helper method to ProductMonitor via module-level function
+// (keeps the type clean — this is a pure UI concern)
+function mlGtin(p: ProductMonitor): string | null {
+  const gtin = p.mlAttributes.find((a) => a.id === 'GTIN' || a.id === 'EAN');
+  return gtin?.valueName ?? null;
+}
+
+// ─── Pendências helper ────────────────────────────────────────────────
+function computePendencias(p: ProductMonitor): string[] {
+  const list: string[] = [];
+  if (p.mlItemId === null) return list;
+  if (p.mlVideoId === null) list.push('Sem vídeo');
+  if (p.mlPictureCount !== null && p.mlPictureCount < 3) list.push('Poucas fotos');
+  if (!p.hasDescription) list.push('Descrição incompleta');
+  if (p.mlAttributes.length < 5) list.push('Poucos atributos');
+  if (p.mlCategoryId === null) list.push('Categoria incompleta');
+  if (p.mlTitle !== null && p.mlTitle.length < 30) list.push('Título fraco');
+  if (mlGtin(p) === null) list.push('Sem GTIN');
+  if (p.mlWarranty === null) list.push('Sem garantia');
+  return list;
+}
+
+// ─── Photo badge ──────────────────────────────────────────────────────
+function PhotoCell({ count }: { count: number | null }) {
+  if (count === null) return <span className="text-xs text-gray-400">—</span>;
+  if (count === 0) return <span className="text-xs text-red-500 font-medium flex items-center gap-1 justify-center"><XCircle className="h-3.5 w-3.5" /> Nenhuma</span>;
+  if (count < 3) return <span className="text-xs text-amber-600 font-medium flex items-center gap-1 justify-center"><AlertCircle className="h-3.5 w-3.5" /> {count} foto(s)</span>;
+  return <span className="text-xs text-green-600 font-medium flex items-center gap-1 justify-center"><CheckCircle className="h-3.5 w-3.5" /> {count} fotos</span>;
+}
+
+// ─── Description badge ────────────────────────────────────────────────
+function DescCell({ has, text }: { has: boolean; text: string | null }) {
+  if (!has || !text) return <span className="text-xs text-red-500 font-medium">Ausente</span>;
+  if (text.length < 100) return <span className="text-xs text-amber-600 font-medium">Curta</span>;
+  return <span className="text-xs text-green-600 font-medium">Completa</span>;
+}
+
+// ─── Video badge ──────────────────────────────────────────────────────
+function VideoCell({ has }: { has: boolean }) {
+  return has
+    ? <span className="text-xs text-green-600 font-medium">Possui</span>
+    : <span className="text-xs text-red-400 font-medium">Não possui</span>;
+}
+
+// ─── Stock badge (existing logic, unchanged) ─────────────────────────
 function StockBadge({ erp, mp }: { erp: number; mp: number | null }) {
   if (mp === null) return <span className="text-xs text-gray-400">Não listado</span>;
   if (erp === mp) return <span className="text-xs text-green-600 font-medium">OK ({erp})</span>;
@@ -40,14 +95,7 @@ function StockBadge({ erp, mp }: { erp: number; mp: number | null }) {
   );
 }
 
-function QualityDot({ ok }: { ok: boolean }) {
-  return ok ? (
-    <CheckCircle className="h-4 w-4 text-green-500" />
-  ) : (
-    <XCircle className="h-4 w-4 text-red-400" />
-  );
-}
-
+// ─── ML Status badge ──────────────────────────────────────────────────
 function MLStatusBadge({ status }: { status: ProductMonitor['mlStatus'] }) {
   if (status === null || status === 'not_listed')
     return <span className="text-xs text-gray-400">—</span>;
@@ -60,6 +108,187 @@ function MLStatusBadge({ status }: { status: ProductMonitor['mlStatus'] }) {
   return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${c.cls}`}>{c.label}</span>;
 }
 
+// ─── Pendências badge ─────────────────────────────────────────────────
+function PendenciasCell({ items }: { items: string[] }) {
+  if (items.length === 0) return <span className="text-xs text-green-600 font-medium flex items-center gap-1 justify-center"><CheckCircle className="h-3.5 w-3.5" /> OK</span>;
+  return (
+    <div className="flex flex-wrap gap-1 justify-center max-w-[180px]">
+      {items.slice(0, 3).map((item, i) => (
+        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">{item}</span>
+      ))}
+      {items.length > 3 && <span className="text-[10px] text-amber-600 font-medium">+{items.length - 3}</span>}
+    </div>
+  );
+}
+
+// ─── Detail Drawer ────────────────────────────────────────────────────
+function DetailDrawer({ product, onClose }: { product: ProductMonitor; onClose: () => void }) {
+  const gtin = mlGtin(product);
+  const pendencias = computePendencias(product);
+  const hc = healthColor(product.mlHealth);
+  const listingTypeLabel: Record<string, string> = {
+    gold_pro: 'Gold Pro',
+    gold_special: 'Gold Special',
+    gold: 'Gold',
+    silver: 'Silver',
+    bronze: 'Bronze',
+    free: 'Grátis',
+  };
+  const conditionLabel: Record<string, string> = {
+    new: 'Novo',
+    used: 'Usado',
+    not_specified: 'Não especificado',
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
+      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-900 truncate pr-4">Detalhes do Anúncio</h2>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+            <X className="h-5 w-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="px-6 py-4 space-y-6">
+          {/* Product name + SKU */}
+          <div>
+            <p className="text-base font-semibold text-gray-900 leading-snug">{product.name}</p>
+            <p className="text-xs text-gray-400 font-mono mt-1">SKU: {product.sku}</p>
+          </div>
+
+          {/* Health Score */}
+          {product.mlItemId && (
+            <div className={`rounded-xl p-4 ${hc.bg}`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4" /> Saúde do Anúncio
+                </span>
+                {product.mlPermalink && (
+                  <a href={product.mlPermalink} target="_blank" rel="noopener noreferrer"
+                     className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                    Ver anúncio <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <div className={`text-3xl font-bold ${hc.text}`}>
+                  {product.mlHealth !== null ? `${product.mlHealth}%` : 'N/D'}
+                </div>
+                <div>
+                  <span className={`text-sm font-medium ${hc.text}`}>{hc.label}</span>
+                  {product.mlSoldQuantity !== null && (
+                    <p className="text-xs text-gray-500 mt-0.5">{product.mlSoldQuantity} vendidos</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Pendências */}
+          {product.mlItemId && (
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Pendências</h3>
+              {pendencias.length === 0 ? (
+                <div className="flex items-center gap-1.5 text-sm text-green-600">
+                  <CheckCircle className="h-4 w-4" /> Nenhuma pendência detectada
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {pendencias.map((p, i) => (
+                    <span key={i} className="text-xs px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">{p}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ERP Section */}
+          <div>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+              <Box className="h-4 w-4" /> ERP (Bling)
+            </h3>
+            <div className="space-y-2">
+              <DetailRow label="Estoque" value={String(product.erpStock)} />
+              <DetailRow label="Preço" value={`R$ ${product.erpPrice.toFixed(2)}`} />
+              {product.erpPrecoCusto !== null && <DetailRow label="Custo" value={`R$ ${product.erpPrecoCusto.toFixed(2)}`} />}
+              {product.erpCategoria && <DetailRow label="Categoria" value={product.erpCategoria} />}
+              {product.erpMarca && <DetailRow label="Marca" value={product.erpMarca} />}
+              {product.erpGtin && <DetailRow label="GTIN" value={product.erpGtin} />}
+              {product.erpPeso !== null && <DetailRow label="Peso (kg)" value={String(product.erpPeso)} />}
+              {product.erpSituacao && <DetailRow label="Situação" value={product.erpSituacao} />}
+              {product.erpNcm && <DetailRow label="NCM" value={product.erpNcm} />}
+              {product.erpTipo && <DetailRow label="Tipo" value={product.erpTipo} />}
+              {product.erpUnidade && <DetailRow label="Unidade" value={product.erpUnidade} />}
+              <DetailRow label="Fotos" value={product.erpPhotoCount > 0 ? `${product.erpPhotoCount} foto(s)` : 'Nenhuma'} />
+              <DetailRow label="Descrição" value={product.erpDescriptionText ? (product.erpDescriptionText.length >= 100 ? 'Completa' : 'Curta') : 'Ausente'} />
+            </div>
+          </div>
+
+          {/* Marketplace Section */}
+          {product.mlItemId ? (
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <ShoppingBag className="h-4 w-4" /> Marketplace (Mercado Livre)
+              </h3>
+              <div className="space-y-2">
+                <DetailRow label="Item ID" value={product.mlItemId} mono />
+                {product.mlTitle && <DetailRow label="Título ML" value={product.mlTitle} />}
+                <DetailRow label="Status" value={product.mlStatus === 'active' ? 'Ativo' : product.mlStatus === 'paused' ? 'Pausado' : product.mlStatus === 'closed' ? 'Encerrado' : '—'} />
+                <DetailRow label="Estoque ML" value={String(product.mlStock ?? '—')} />
+                {product.mlPrice !== null && <DetailRow label="Preço ML" value={`R$ ${product.mlPrice.toFixed(2)}`} />}
+                {product.mlSoldQuantity !== null && <DetailRow label="Qtd. vendida" value={String(product.mlSoldQuantity)} />}
+                {product.mlListingType && <DetailRow label="Tipo anúncio" value={listingTypeLabel[product.mlListingType] ?? product.mlListingType} />}
+                {product.mlCondition && <DetailRow label="Condição" value={conditionLabel[product.mlCondition] ?? product.mlCondition} />}
+                {product.mlCategoryId && <DetailRow label="Categoria ML" value={product.mlCategoryId} />}
+                {product.mlPictureCount !== null && <DetailRow label="Fotos ML" value={String(product.mlPictureCount)} />}
+                <DetailRow label="Vídeo" value={product.mlVideoId ? 'Possui' : 'Não possui'} />
+                {product.mlFreeShipping !== null && <DetailRow label="Frete grátis" value={product.mlFreeShipping ? 'Sim' : 'Não'} />}
+                {product.mlLocalPickUp !== null && <DetailRow label="Retirada local" value={product.mlLocalPickUp ? 'Sim' : 'Não'} />}
+                {product.mlWarranty && <DetailRow label="Garantia" value={product.mlWarranty} />}
+                {product.mlAcceptsMercadoPago !== null && <DetailRow label="Mercado Pago" value={product.mlAcceptsMercadoPago ? 'Sim' : 'Não'} />}
+                {product.mlCatalogListing !== null && <DetailRow label="Catálogo" value={product.mlCatalogListing ? 'Sim' : 'Não'} />}
+                {gtin && <DetailRow label="GTIN (ML)" value={gtin} />}
+                {product.mlDateCreated && <DetailRow label="Criado em" value={new Date(product.mlDateCreated).toLocaleDateString('pt-BR')} />}
+                {product.mlLastUpdated && <DetailRow label="Atualizado" value={new Date(product.mlLastUpdated).toLocaleDateString('pt-BR')} />}
+                {product.mlTags.length > 0 && <DetailRow label="Tags" value={product.mlTags.join(', ')} />}
+              </div>
+
+              {/* Attributes */}
+              {product.mlAttributes.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-xs font-semibold text-gray-500 mb-2 flex items-center gap-1.5"><Tag className="h-3.5 w-3.5" /> Atributos</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {product.mlAttributes.map((a, i) => (
+                      <span key={i} className="text-xs px-2 py-1 rounded-lg bg-gray-50 text-gray-600 border border-gray-200">
+                        {a.name}: {a.valueName ?? '—'}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-sm text-gray-400 italic">Produto não listado no Mercado Livre</div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-xs text-gray-500 shrink-0">{label}</span>
+      <span className={`text-xs font-medium text-gray-900 text-right ${mono ? 'font-mono' : ''}`}>{value}</span>
+    </div>
+  );
+}
+
+// ─── Main component ────────────────────────────────────────────────────
 export function Monitor() {
   const [tab, setTab] = useState<Tab>('produtos');
   const [products, setProducts] = useState<ProductMonitor[]>([]);
@@ -69,6 +298,7 @@ export function Monitor() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [orderFilter, setOrderFilter] = useState('all');
+  const [selectedProduct, setSelectedProduct] = useState<ProductMonitor | null>(null);
 
   async function loadAll() {
     setLoading(true);
@@ -164,14 +394,17 @@ export function Monitor() {
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3">Produto / SKU</th>
-                  <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">ERP</th>
-                  <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">ML Stock</th>
-                  <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">Shopee Stock</th>
-                  <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">Foto</th>
-                  <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">Desc.</th>
-                  <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">Vídeo</th>
+                  <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3" title="Estoque ERP">Est. ERP</th>
+                  <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3" title="Preço ERP">Preço ERP</th>
+                  <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3" title="Estoque Mercado Livre">Est. ML</th>
+                  <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3" title="Preço Mercado Livre">Preço ML</th>
                   <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">Status ML</th>
-                  <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">Status Shopee</th>
+                  <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3" title="Saúde do Anúncio">Saúde</th>
+                  <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">Fotos</th>
+                  <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">Descrição</th>
+                  <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">Vídeo</th>
+                  <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">Pendências</th>
+                  <th className="px-2 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -179,40 +412,68 @@ export function Monitor() {
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="animate-pulse">
                       <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-48" /></td>
-                      {Array.from({ length: 8 }).map((__, j) => (
+                      {Array.from({ length: 11 }).map((__, j) => (
                         <td key={j} className="px-3 py-3 text-center"><div className="h-4 bg-gray-200 rounded w-8 mx-auto" /></td>
                       ))}
                     </tr>
                   ))
                 ) : filteredProducts.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-sm text-gray-400">
+                    <td colSpan={12} className="px-4 py-12 text-center text-sm text-gray-400">
                       Nenhum produto encontrado
                     </td>
                   </tr>
                 ) : (
-                  filteredProducts.map((p) => (
-                    <tr key={p.sku} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3">
-                        <p className="text-sm font-medium text-gray-900 leading-snug">{p.name}</p>
-                        <p className="text-xs text-gray-400 font-mono mt-0.5">{p.sku}</p>
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <span className="text-sm font-semibold text-gray-900">{p.erpStock}</span>
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <StockBadge erp={p.erpStock} mp={p.mlStock} />
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <StockBadge erp={p.erpStock} mp={p.shopeeStock} />
-                      </td>
-                      <td className="px-3 py-3 text-center flex justify-center"><QualityDot ok={p.hasPhoto} /></td>
-                      <td className="px-3 py-3 text-center"><div className="flex justify-center"><QualityDot ok={p.hasDescription} /></div></td>
-                      <td className="px-3 py-3 text-center"><div className="flex justify-center"><QualityDot ok={p.hasVideo} /></div></td>
-                      <td className="px-3 py-3 text-center"><MLStatusBadge status={p.mlStatus} /></td>
-                      <td className="px-3 py-3 text-center"><MLStatusBadge status={p.shopeeStatus} /></td>
-                    </tr>
-                  ))
+                  filteredProducts.map((p) => {
+                    const hc = healthColor(p.mlHealth);
+                    const pendencias = computePendencias(p);
+                    return (
+                      <tr
+                        key={p.sku}
+                        className="hover:bg-gray-50 transition-colors cursor-pointer"
+                        onClick={() => setSelectedProduct(p)}
+                      >
+                        <td className="px-4 py-3">
+                          <p className="text-sm font-medium text-gray-900 leading-snug">{p.name}</p>
+                          <p className="text-xs text-gray-400 font-mono mt-0.5">{p.sku}</p>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <span className="text-sm font-semibold text-gray-900">{p.erpStock}</span>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <span className="text-xs font-medium text-gray-700">R$ {p.erpPrice.toFixed(2)}</span>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <StockBadge erp={p.erpStock} mp={p.mlStock} />
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          {p.mlPrice !== null ? (
+                            <span className="text-xs font-medium text-gray-700">R$ {p.mlPrice.toFixed(2)}</span>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-center"><MLStatusBadge status={p.mlStatus} /></td>
+                        <td className="px-3 py-3 text-center">
+                          {p.mlHealth !== null ? (
+                            <div className="flex items-center gap-1.5 justify-center">
+                              <span className={`h-2 w-2 rounded-full ${hc.dot}`} />
+                              <span className={`text-xs font-semibold ${hc.text}`}>{p.mlHealth}%</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-center"><PhotoCell count={p.mlPictureCount ?? (p.erpPhotoCount > 0 ? p.erpPhotoCount : null)} /></td>
+                        <td className="px-3 py-3 text-center"><DescCell has={p.hasDescription} text={p.erpDescriptionText} /></td>
+                        <td className="px-3 py-3 text-center"><VideoCell has={p.hasVideo} /></td>
+                        <td className="px-3 py-3 text-center"><PendenciasCell items={pendencias} /></td>
+                        <td className="px-2 py-3 text-center">
+                          <ChevronRight className="h-4 w-4 text-gray-300" />
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -345,6 +606,11 @@ export function Monitor() {
                 </div>
               ))}
         </div>
+      )}
+
+      {/* Detail Drawer */}
+      {selectedProduct && (
+        <DetailDrawer product={selectedProduct} onClose={() => setSelectedProduct(null)} />
       )}
     </div>
   );

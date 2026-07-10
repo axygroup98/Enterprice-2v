@@ -54,10 +54,28 @@ export interface IntegrationStatus {
   tokenConfigured: boolean;
 }
 
+export interface MLAttribute {
+  id: string;
+  name: string;
+  valueName: string | null;
+}
+
 export interface ProductMonitor {
   sku: string;
   name: string;
   erpStock: number;
+  erpPrice: number;
+  erpPrecoCusto: number | null;
+  erpCategoria: string | null;
+  erpMarca: string | null;
+  erpGtin: string | null;
+  erpPeso: number | null;
+  erpSituacao: string | null;
+  erpNcm: string | null;
+  erpTipo: string | null;
+  erpUnidade: string | null;
+  erpPhotoCount: number;
+  erpDescriptionText: string | null;
   mlStock: number | null;
   shopeeStock: number | null;
   hasPhoto: boolean;
@@ -65,6 +83,27 @@ export interface ProductMonitor {
   hasVideo: boolean;
   mlStatus: 'active' | 'paused' | 'closed' | 'not_listed' | null;
   shopeeStatus: 'active' | 'paused' | 'closed' | 'not_listed' | null;
+  mlItemId: string | null;
+  mlTitle: string | null;
+  mlPrice: number | null;
+  mlSoldQuantity: number | null;
+  mlHealth: number | null;
+  mlPermalink: string | null;
+  mlThumbnail: string | null;
+  mlPictureCount: number | null;
+  mlVideoId: string | null;
+  mlListingType: string | null;
+  mlCondition: string | null;
+  mlCategoryId: string | null;
+  mlFreeShipping: boolean | null;
+  mlLocalPickUp: boolean | null;
+  mlWarranty: string | null;
+  mlAcceptsMercadoPago: boolean | null;
+  mlCatalogListing: boolean | null;
+  mlAttributes: MLAttribute[];
+  mlTags: string[];
+  mlDateCreated: string | null;
+  mlLastUpdated: string | null;
 }
 
 export interface OrderMonitor {

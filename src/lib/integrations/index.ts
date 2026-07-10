@@ -65,8 +65,25 @@ export async function updateAllIntegrations(): Promise<UpdateIntegrationsResult>
 }
 
 // ─── Monitor (produtos e pedidos) ────────────────────────────────────────────
-interface BlingProductDTO { id: string; sku: string; name: string; stock: number; hasPhoto: boolean; hasDescription: boolean }
-interface MLListingDTO { itemId: string; sku: string | null; title: string; stock: number; status: string }
+interface BlingProductDTO {
+  id: string; sku: string; name: string; stock: number; price: number;
+  hasPhoto: boolean; hasDescription: boolean;
+  photoCount: number; descriptionText: string | null;
+  categoria: string | null; marca: string | null; gtin: string | null;
+  peso: number | null; situacao: string | null; ncm: string | null;
+  precoCusto: number | null; tipo: string | null; unidade: string | null;
+}
+interface MLListingDTO {
+  itemId: string; sku: string | null; title: string; stock: number; status: string;
+  price: number; soldQuantity: number; health: number | null;
+  permalink: string | null; thumbnail: string | null; pictureCount: number;
+  videoId: string | null; listingType: string | null; condition: string | null;
+  categoryId: string | null; freeShipping: boolean | null; localPickUp: boolean | null;
+  warranty: string | null; acceptsMercadoPago: boolean | null;
+  catalogListing: boolean | null;
+  attributes: Array<{ id: string; name: string; valueName: string | null }>;
+  tags: string[]; dateCreated: string | null; lastUpdated: string | null;
+}
 interface ShopeeListingDTO { itemId: number; sku: string | null; name: string; stock: number; status: string }
 
 export function mapMlStatus(status: string): ProductMonitor['mlStatus'] {
@@ -103,16 +120,46 @@ export async function getProductMonitorData(): Promise<ProductMonitor[]> {
       sku: p.sku,
       name: p.name,
       erpStock: p.stock,
+      erpPrice: p.price,
+      erpPrecoCusto: p.precoCusto,
+      erpCategoria: p.categoria,
+      erpMarca: p.marca,
+      erpGtin: p.gtin,
+      erpPeso: p.peso,
+      erpSituacao: p.situacao,
+      erpNcm: p.ncm,
+      erpTipo: p.tipo,
+      erpUnidade: p.unidade,
+      erpPhotoCount: p.photoCount,
+      erpDescriptionText: p.descriptionText,
       mlStock: ml?.stock ?? null,
       shopeeStock: sh?.stock ?? null,
       hasPhoto: p.hasPhoto,
       hasDescription: p.hasDescription,
-      // O Bling v3 /produtos não retorna vídeo de forma confiável sem uma
-      // chamada extra (mídia do anúncio); deixado como false até validarmos
-      // esse campo com uma conta real, em vez de inventar um valor.
-      hasVideo: false,
+      hasVideo: ml?.videoId != null,
       mlStatus: ml ? mapMlStatus(ml.status) : 'not_listed',
       shopeeStatus: sh ? mapShopeeStatus(sh.status) : 'not_listed',
+      mlItemId: ml?.itemId ?? null,
+      mlTitle: ml?.title ?? null,
+      mlPrice: ml?.price ?? null,
+      mlSoldQuantity: ml?.soldQuantity ?? null,
+      mlHealth: ml?.health ?? null,
+      mlPermalink: ml?.permalink ?? null,
+      mlThumbnail: ml?.thumbnail ?? null,
+      mlPictureCount: ml?.pictureCount ?? null,
+      mlVideoId: ml?.videoId ?? null,
+      mlListingType: ml?.listingType ?? null,
+      mlCondition: ml?.condition ?? null,
+      mlCategoryId: ml?.categoryId ?? null,
+      mlFreeShipping: ml?.freeShipping ?? null,
+      mlLocalPickUp: ml?.localPickUp ?? null,
+      mlWarranty: ml?.warranty ?? null,
+      mlAcceptsMercadoPago: ml?.acceptsMercadoPago ?? null,
+      mlCatalogListing: ml?.catalogListing ?? null,
+      mlAttributes: ml?.attributes ?? [],
+      mlTags: ml?.tags ?? [],
+      mlDateCreated: ml?.dateCreated ?? null,
+      mlLastUpdated: ml?.lastUpdated ?? null,
     };
   });
 }
