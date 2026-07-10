@@ -204,6 +204,102 @@ export async function getMarketplaceListings(erpProducts?: ErpProduct[]): Promis
   return [...mlListings, ...shopeeListings];
 }
 
+// ─── Conciliação local (ERP × ML) ─────────────────────────────────────
+// Derives divergences client-side from data already fetched by
+// getErpProducts() + getMarketplaceListings() — no new API calls.
+export interface LocalDivergence {
+  id: string;
+  sku: string;
+  productName: string;
+  type: 'stock' | 'price' | 'no_listing' | 'orphan_listing';
+  severity: 'critical' | 'high' | 'medium' | 'informative';
+  erpValue: string;
+  mlValue: string;
+  mlItemId: string | null;
+  recommendedAction: string;
+}
+
+export async function computeLocalDivergences(): Promise<LocalDivergence[]> {
+  const erp = await getErpProducts();
+  const listings = await getMarketplaceListings(erp);
+  const ml = listings.filter((l) => l.source === 'mercadolivre');
+  const mlBySku = new Map<string, MarketplaceListing[]>();
+  for (const l of ml) {
+    if (l.sku) {
+      const arr = mlBySku.get(l.sku) ?? [];
+      arr.push(l);
+      mlBySku.set(l.sku, arr);
+    }
+  }
+
+  const divergences: LocalDivergence[] = [];
+
+  for (const p of erp) {
+    const linked = p.sku ? mlBySku.get(p.sku) ?? [] : [];
+    if (linked.length === 0) {
+      divergences.push({
+        id: `no_listing_${p.sku}`,
+        sku: p.sku,
+        productName: p.name,
+        type: 'no_listing',
+        severity: 'medium',
+        erpValue: `Est: ${p.stock} · R$ ${p.price.toFixed(2)}`,
+        mlValue: 'Sem anúncio',
+        mlItemId: null,
+        recommendedAction: 'Criar anúncio no Mercado Livre para este SKU.',
+      });
+      continue;
+    }
+    for (const l of linked) {
+      if (l.stock !== p.stock) {
+        divergences.push({
+          id: `stock_${l.itemId}`,
+          sku: p.sku,
+          productName: p.name,
+          type: 'stock',
+          severity: l.stock === 0 && p.stock > 0 ? 'critical' : 'high',
+          erpValue: String(p.stock),
+          mlValue: String(l.stock),
+          mlItemId: l.itemId,
+          recommendedAction: 'Atualizar estoque do anúncio para corresponder ao ERP.',
+        });
+      }
+      if (l.price !== null && Math.abs(l.price - p.price) > 0.01) {
+        divergences.push({
+          id: `price_${l.itemId}`,
+          sku: p.sku,
+          productName: p.name,
+          type: 'price',
+          severity: 'high',
+          erpValue: `R$ ${p.price.toFixed(2)}`,
+          mlValue: `R$ ${l.price.toFixed(2)}`,
+          mlItemId: l.itemId,
+          recommendedAction: 'Atualizar preço do anúncio para corresponder ao ERP.',
+        });
+      }
+    }
+  }
+
+  const erpSkus = new Set(erp.map((p) => p.sku));
+  for (const l of ml) {
+    if (l.sku && !erpSkus.has(l.sku)) {
+      divergences.push({
+        id: `orphan_${l.itemId}`,
+        sku: l.sku,
+        productName: l.title,
+        type: 'orphan_listing',
+        severity: 'informative',
+        erpValue: 'SKU não encontrado no ERP',
+        mlValue: `Est: ${l.stock} · R$ ${l.price?.toFixed(2) ?? '—'}`,
+        mlItemId: l.itemId,
+        recommendedAction: 'Verificar se o SKU existe no ERP ou encerrar o anúncio.',
+      });
+    }
+  }
+
+  return divergences;
+}
+
 interface BlingOrderDTO {
   id?: string | number;
   numero?: string | number;
